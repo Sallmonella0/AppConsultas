@@ -1,0 +1,46 @@
+# Ficheiros de Build
+# --------------------
+/build
+/app/build
+/app/release
+/app/debug
+
+# Ficheiros de Configuração Local (O MAIS IMPORTANTE!)
+# ----------------------------------------------------
+# Este ficheiro contém as suas 8 senhas de cliente.
+local.properties
+
+# Ficheiros de IDE (Android Studio)
+# ---------------------------------
+.idea/
+*.iml
+*.ids
+.gradle/
+gradle-wrapper.jar
+.DS_Store
+
+# Ficheiros de Pacote (APKs/Bundles)
+# ----------------------------------
+*.apk
+*.aab
+*.ap_
+
+# Ficheiros de Log e Output
+# -------------------------
+*.log
+/captures/
+.cxx/
+
+# Ficheiros de Chaves de Assinatura (Segurança)
+# ---------------------------------------------
+*.jks
+*.keystore
+
+# Ficheiros do Google Services
+# ----------------------------
+# (Caso adicione Firebase, etc.)
+google-services.json
+
+# Ficheiros de Teste
+# ------------------
+/app/test-coverage
