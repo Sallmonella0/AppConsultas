@@ -1,18 +1,18 @@
 [versions]
 # --- Versões principais ---
-androidGradlePlugin = "8.13.0" # Use a versão do seu Android Studio
+androidGradlePlugin = "8.13.0"
 kotlin = "2.0.21"
-composeCompiler = "1.5.14" # Compatível com Kotlin 2.0.21
 composeBom = "2024.06.00"
 activityCompose = "1.9.0"
 lifecycleViewmodelCompose = "2.8.3"
+lifecycleRuntimeKtx = "2.8.3"
+navigation = "2.7.7"
 retrofit = "2.9.0"
 coreKtx = "1.13.1"
 junit = "4.13.2"
 androidxTestExtJunit = "1.2.1"
 espressoCore = "3.6.1"
 materialIcons = "1.6.8"
-# A versão 'materialDynamicColor' foi removida pois não existe
 
 [libraries]
 # --- Core e Testes ---
@@ -29,12 +29,18 @@ androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
-# Ícones (para DarkMode, Copiar, etc.)
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended-android", version.ref = "materialIcons" }
-# A 'material3-dynamic-color' foi removida
 
-# --- ViewModel ---
+# --- ViewModel e Lifecycle ---
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+
+# --- Navigation Compose ---
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+
+# --- Dependências de Teste de UI Compose ---
+androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 
 # --- Rede (Retrofit) ---
 retrofit-core = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
@@ -42,6 +48,5 @@ retrofit-converter-gson = { module = "com.squareup.retrofit2:converter-gson", ve
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-# Plugin do Compilador do Compose
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

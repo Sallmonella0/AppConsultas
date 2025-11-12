@@ -31,17 +31,23 @@ enum class ColunaFiltro {
     TRACK_ID
 }
 
-class ConsultaViewModel : ViewModel() {
+// O ViewModel agora RECEBE UMA LISTA de clientes (pode ser 1 ou todos)
+class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
 
     private val apiService: ApiService = RetrofitClient.instance
 
-    // --- StateFlows (Sem alterações) ---
-    private val _clientes = MutableStateFlow<List<Cliente>>(emptyList())
+    // --- StateFlows ---
+    // A lista de clientes que o VM pode ver
+    private val _clientes = MutableStateFlow(clientes)
     val clientes: StateFlow<List<Cliente>> = _clientes.asStateFlow()
-    private val _clienteSelecionado = MutableStateFlow<Cliente?>(null)
+
+    // O cliente selecionado (o primeiro da lista por defeito)
+    private val _clienteSelecionado = MutableStateFlow<Cliente?>(clientes.firstOrNull())
     val clienteSelecionado: StateFlow<Cliente?> = _clienteSelecionado.asStateFlow()
+
     private val _darkTheme = MutableStateFlow(false)
     val darkTheme: StateFlow<Boolean> = _darkTheme.asStateFlow()
+    // ... (O resto dos StateFlows não muda)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _registosBase = MutableStateFlow<List<ConsultaRecord>>(emptyList())
@@ -59,10 +65,12 @@ class ConsultaViewModel : ViewModel() {
     val colunaFiltroSelecionada: StateFlow<ColunaFiltro> = _colunaFiltroSelecionada.asStateFlow()
 
 
-    // --- Flow Combinado (Sem alterações, 'compareBy' funciona com Long) ---
+    // --- Flow Combinado (Sem alterações) ---
     val registosFinais: StateFlow<List<ConsultaRecord>> = combine(
         _registosBase, _textoDoFiltro, _colunaFiltroSelecionada, _colunaOrdenacao, _ordemDescendente
-    ) { registos, filtro, colunaFiltro, colunaOrd, descendente ->
+    ) {
+        // ... (lógica de filtro e ordenação não muda)
+            registos, filtro, colunaFiltro, colunaOrd, descendente ->
 
         val registosFiltrados = if (filtro.isBlank()) {
             registos
@@ -77,7 +85,6 @@ class ConsultaViewModel : ViewModel() {
             }
         }
 
-        // 'compareBy { it.idMensagem }' funciona perfeitamente com Long
         val comparador: Comparator<ConsultaRecord> = when (colunaOrd) {
             Coluna.DATA_HORA -> compareBy { it.dataHora }
             Coluna.PLACA -> compareBy { it.placa }
@@ -96,70 +103,13 @@ class ConsultaViewModel : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
-    // --- Inicialização (Sem alterações) ---
+    // --- Inicialização ---
     init {
-        carregarClientesMock()
-        _clientes.value.firstOrNull()?.let { primeiroCliente ->
-            _clienteSelecionado.value = primeiroCliente
-            carregarDadosIniciais()
-        }
+        // Carrega os dados para o cliente que fez o login
+        carregarDadosIniciais()
     }
 
     // --- Funções Mock e Auth (Sem alterações) ---
-    private fun carregarClientesMock() {
-        _clientes.value = listOf(
-            Cliente(
-                id = "1",
-                nome = "VIP",
-                username = "vip",
-                password = "83114d8fc3164de4e85b4e6ee8a04bbd"
-            ),
-            Cliente(
-                id = "2",
-                nome = "CKL",
-                username = "ckl",
-                password = "d4f864e8421eb0bf07384a1ae831ab7b"
-            ),
-            Cliente(
-                id = "3",
-                nome = "Reverselog",
-                username = "reverselog",
-                password = "dbbc6fa7bdaa7c9092a2b2560594ec55"
-            ),
-            Cliente(
-                id = "4",
-                nome = "Rodoleve",
-                username = "rodoleve",
-                password = "d3a0b71c95972adf17822e30362680f8"
-            ),
-            Cliente(
-                id = "5",
-                nome = "ServidorGxBeloog",
-                username = "servidorGxBeloog",
-                password = "0330265cbb2bf452ae54226c43b3d081"
-            ),
-            Cliente(
-                id = "6",
-                nome = "Gallotti",
-                username = "gallotti",
-                password = "0cb9bcfb3bd24a8ad373bb1c005e25c0"
-            ),
-            Cliente(
-                id = "7",
-                nome = "Transgires",
-                username = "transgires",
-                password = "18833edf8866b7f280266ecee733a43d"
-            ),
-            Cliente(
-                id = "8",
-                nome = "Agregamais",
-                username = "agregamais",
-                password = "eabfe1ffdb963ed3656da4ed91f7b37a"
-            )
-
-        )
-    }
-
     private fun gerarAuthHeader(cliente: Cliente): String {
         val credenciais = "${cliente.username}:${cliente.password}"
         val dadosCodificados = Base64.encodeToString(credenciais.toByteArray(), Base64.NO_WRAP)
@@ -167,7 +117,7 @@ class ConsultaViewModel : ViewModel() {
     }
 
 
-    // --- Ações da API (ATUALIZADAS) ---
+    // --- Ações da API (Sem alterações) ---
     fun carregarDadosIniciais() {
         val cliente = _clienteSelecionado.value ?: return
 
@@ -175,9 +125,6 @@ class ConsultaViewModel : ViewModel() {
             _isLoading.value = true
             try {
                 val authToken = gerarAuthHeader(cliente)
-
-                // --- CORREÇÃO AQUI ---
-                // Enviando 0L (como um Long)
                 val requestBody = ConsultaRequestBody(idMensagem = 0L)
 
                 _registosBase.value = apiService.consultarDados(
@@ -186,7 +133,7 @@ class ConsultaViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 _registosBase.value = emptyList()
-                e.printStackTrace() // Imprime o erro no Logcat
+                e.printStackTrace()
             } finally {
                 _isLoading.value = false
             }
@@ -205,9 +152,6 @@ class ConsultaViewModel : ViewModel() {
             _isLoading.value = true
             try {
                 val authToken = gerarAuthHeader(cliente)
-
-                // --- CORREÇÃO AQUI ---
-                // Convertendo o texto do campo para Long? (Número Longo ou Nulo)
                 val requestBody = ConsultaRequestBody(idMensagem = id.toLongOrNull())
 
                 _registosBase.value = apiService.consultarDados(
@@ -216,20 +160,24 @@ class ConsultaViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 _registosBase.value = emptyList()
-                e.printStackTrace() // Imprime o erro no Logcat
+                e.printStackTrace()
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // --- Ações da UI (Sem alterações) ---
+    // --- Ações da UI ---
+
+    // A FUNÇÃO DE TROCA DE CLIENTE ESTÁ DE VOLTA
     fun onClienteSelecionado(cliente: Cliente) {
+        if (_clienteSelecionado.value?.id == cliente.id) return
         _clienteSelecionado.value = cliente
-        limparTudo()
-        carregarDadosIniciais()
+        limparTudo() // Limpa os filtros
+        carregarDadosIniciais() // Carrega os dados do novo cliente
     }
 
+    // ... (O resto das funções não muda)
     fun toggleTheme() {
         _darkTheme.value = !_darkTheme.value
     }
@@ -269,7 +217,6 @@ class ConsultaViewModel : ViewModel() {
         }
     }
 
-    // --- Ações do Dialog (Sem alterações) ---
     fun onRegistoClicked(record: ConsultaRecord) {
         _registoSelecionado.value = record
     }
@@ -280,6 +227,7 @@ class ConsultaViewModel : ViewModel() {
 
     // --- Funções de Exportação (Sem alterações) ---
     fun gerarConteudoCSV(): String {
+        // ... (código idêntico)
         val header = "IDMENSAGEM,DATAHORA,PLACA,TRACKID,LATITUDE,LONGITUDE\n"
         return header + registosFinais.value.joinToString("\n") {
             "${it.idMensagem},${it.dataHora},${it.placa ?: ""},${it.trackId ?: ""},${it.latitude ?: ""},${it.longitude ?: ""}"
@@ -287,6 +235,7 @@ class ConsultaViewModel : ViewModel() {
     }
 
     fun gerarConteudoXML(): String {
+        // ... (código idêntico)
         val builder = StringBuilder()
         builder.append("<Consultas>\n")
         registosFinais.value.forEach {
@@ -297,7 +246,7 @@ class ConsultaViewModel : ViewModel() {
             builder.append("    <TRACKID>${it.trackId ?: ""}</TRACKID>\n")
             builder.append("    <LATITUDE>${it.latitude ?: ""}</LATITUDE>\n")
             builder.append("    <LONGITUDE>${it.longitude ?: ""}</LONGITUDE>\n")
-            builder.append("  </S_Registo>\n") // <-- Bug! Corrigir
+            builder.append("  </Registo>\n")
         }
         builder.append("</Consultas>")
         return builder.toString()

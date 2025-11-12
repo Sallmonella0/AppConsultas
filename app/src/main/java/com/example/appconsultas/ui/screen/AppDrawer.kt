@@ -1,26 +1,19 @@
 package com.example.appconsultas.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+// --- IMPORTS DE ÍCONES CORRIGIDOS ---
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,7 +43,7 @@ fun AppDrawerContent(
             contentAlignment = Alignment.BottomStart
         ) {
             Text(
-                text = "App Consultas",
+                text = if (clientes.size > 1) "Admin - App Consultas" else clienteSelecionado?.nome ?: "App Consultas",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -58,25 +51,45 @@ fun AppDrawerContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Clientes",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(clientes) { cliente ->
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
-                    label = { Text(cliente.nome) },
-                    selected = cliente.id == clienteSelecionado?.id,
-                    onClick = {
-                        viewModel.onClienteSelecionado(cliente)
-                        onCloseDrawer()
-                    },
-                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                )
+        if (clientes.size > 1) {
+            Text(
+                "Trocar de Cliente",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                items(clientes) { cliente ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.onClienteSelecionado(cliente)
+                                onCloseDrawer()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = cliente.nome,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (cliente.id == clienteSelecionado?.id) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selecionado",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
             }
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         Divider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
