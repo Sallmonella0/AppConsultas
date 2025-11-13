@@ -8,6 +8,7 @@ import com.example.appconsultas.data.Cliente
 import com.example.appconsultas.data.ConsultaRecord
 import com.example.appconsultas.data.ConsultaRequestBody
 import com.example.appconsultas.data.RetrofitClient
+import com.example.appconsultas.data.DateUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,23 +32,27 @@ enum class ColunaFiltro {
     TRACK_ID
 }
 
-// O ViewModel agora RECEBE UMA LISTA de clientes (pode ser 1 ou todos)
-class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
+class ConsultaViewModel(
+    clientes: List<Cliente>,
+    // O callback é uma função 'suspend'
+    private val onUpdateClientUsage: suspend (String, String?) -> Unit
+) : ViewModel() {
 
     private val apiService: ApiService = RetrofitClient.instance
 
     // --- StateFlows ---
-    // A lista de clientes que o VM pode ver
     private val _clientes = MutableStateFlow(clientes)
     val clientes: StateFlow<List<Cliente>> = _clientes.asStateFlow()
 
-    // O cliente selecionado (o primeiro da lista por defeito)
     private val _clienteSelecionado = MutableStateFlow<Cliente?>(clientes.firstOrNull())
     val clienteSelecionado: StateFlow<Cliente?> = _clienteSelecionado.asStateFlow()
 
+    val userType: StateFlow<String> = MutableStateFlow(
+        if (clientes.size > 1) "admin" else "client"
+    ).asStateFlow()
+
     private val _darkTheme = MutableStateFlow(false)
     val darkTheme: StateFlow<Boolean> = _darkTheme.asStateFlow()
-    // ... (O resto dos StateFlows não muda)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _registosBase = MutableStateFlow<List<ConsultaRecord>>(emptyList())
@@ -65,17 +70,28 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
     val colunaFiltroSelecionada: StateFlow<ColunaFiltro> = _colunaFiltroSelecionada.asStateFlow()
 
 
-    // --- Flow Combinado (Sem alterações) ---
+    // --- Flow Combinado ---
     val registosFinais: StateFlow<List<ConsultaRecord>> = combine(
-        _registosBase, _textoDoFiltro, _colunaFiltroSelecionada, _colunaOrdenacao, _ordemDescendente
-    ) {
-        // ... (lógica de filtro e ordenação não muda)
-            registos, filtro, colunaFiltro, colunaOrd, descendente ->
+        _registosBase,
+        _textoDoFiltro,
+        _colunaFiltroSelecionada,
+        _colunaOrdenacao,
+        _ordemDescendente,
+        _clienteSelecionado
+    ) { args ->
+
+        @Suppress("UNCHECKED_CAST")
+        val registos: List<ConsultaRecord> = args[0] as List<ConsultaRecord>
+        val filtro: String = args[1] as String
+        val colunaFiltro: ColunaFiltro = args[2] as ColunaFiltro
+        val colunaOrd: Coluna = args[3] as Coluna
+        val descendente: Boolean = args[4] as Boolean
+        val cliente: Cliente? = args[5] as Cliente?
 
         val registosFiltrados = if (filtro.isBlank()) {
             registos
         } else {
-            registos.filter { registo ->
+            registos.filter { registo: ConsultaRecord ->
                 when (colunaFiltro) {
                     ColunaFiltro.TODAS -> (registo.placa?.contains(filtro, ignoreCase = true) == true) ||
                             (registo.trackId?.toString()?.contains(filtro, ignoreCase = true) == true)
@@ -86,12 +102,12 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
         }
 
         val comparador: Comparator<ConsultaRecord> = when (colunaOrd) {
-            Coluna.DATA_HORA -> compareBy { it.dataHora }
-            Coluna.PLACA -> compareBy { it.placa }
-            Coluna.ID_MENSAGEM -> compareBy { it.idMensagem }
-            Coluna.TRACK_ID -> compareBy { it.trackId }
-            Coluna.LATITUDE -> compareBy { it.latitude }
-            Coluna.LONGITUDE -> compareBy { it.longitude }
+            Coluna.DATA_HORA -> compareBy(nullsLast(), ConsultaRecord::dataHora)
+            Coluna.PLACA -> compareBy(nullsLast(), ConsultaRecord::placa)
+            Coluna.ID_MENSAGEM -> compareBy(ConsultaRecord::idMensagem)
+            Coluna.TRACK_ID -> compareBy(nullsLast(), ConsultaRecord::trackId)
+            Coluna.LATITUDE -> compareBy(nullsLast(), ConsultaRecord::latitude)
+            Coluna.LONGITUDE -> compareBy(nullsLast(), ConsultaRecord::longitude)
         }
 
         if (descendente) {
@@ -105,19 +121,31 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
 
     // --- Inicialização ---
     init {
-        // Carrega os dados para o cliente que fez o login
-        carregarDadosIniciais()
+        _clientes.value = clientes
     }
 
-    // --- Funções Mock e Auth (Sem alterações) ---
+    // Atualiza o status da última consulta no Firestore/Repository
+    private fun updateLastQueryTime() {
+        clienteSelecionado.value?.let { cliente ->
+            val currentTime = DateUtils.getCurrentFormattedTime()
+            // Lançamos a função suspend em um CoroutineScope
+            viewModelScope.launch {
+                onUpdateClientUsage(cliente.username, currentTime)
+            }
+        }
+    }
+
+    // --- Funções Auth ---
     private fun gerarAuthHeader(cliente: Cliente): String {
         val credenciais = "${cliente.username}:${cliente.password}"
         val dadosCodificados = Base64.encodeToString(credenciais.toByteArray(), Base64.NO_WRAP)
         return "Basic $dadosCodificados"
     }
 
+    fun logout() {}
+    fun setLoggedIn() {}
 
-    // --- Ações da API (Sem alterações) ---
+    // --- Ações da API ---
     fun carregarDadosIniciais() {
         val cliente = _clienteSelecionado.value ?: return
 
@@ -131,6 +159,7 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
                     authHeader = authToken,
                     requestBody = requestBody
                 )
+                updateLastQueryTime() // Chamada após sucesso
             } catch (e: Exception) {
                 _registosBase.value = emptyList()
                 e.printStackTrace()
@@ -158,6 +187,7 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
                     authHeader = authToken,
                     requestBody = requestBody
                 )
+                updateLastQueryTime() // Chamada após sucesso
             } catch (e: Exception) {
                 _registosBase.value = emptyList()
                 e.printStackTrace()
@@ -168,20 +198,17 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
     }
 
     // --- Ações da UI ---
-
-    // A FUNÇÃO DE TROCA DE CLIENTE ESTÁ DE VOLTA
     fun onClienteSelecionado(cliente: Cliente) {
         if (_clienteSelecionado.value?.id == cliente.id) return
         _clienteSelecionado.value = cliente
-        limparTudo() // Limpa os filtros
-        carregarDadosIniciais() // Carrega os dados do novo cliente
+        limparTudo()
+        carregarDadosIniciais()
     }
 
-    // ... (O resto das funções não muda)
     fun toggleTheme() {
         _darkTheme.value = !_darkTheme.value
     }
-
+    // ... (restante das funções de UI)
     fun onTextoIdChange(novoTexto: String) {
         _textoIdConsulta.value = novoTexto
     }
@@ -225,23 +252,21 @@ class ConsultaViewModel(clientes: List<Cliente>) : ViewModel() {
         _registoSelecionado.value = null
     }
 
-    // --- Funções de Exportação (Sem alterações) ---
+    // --- Funções de Exportação ---
     fun gerarConteudoCSV(): String {
-        // ... (código idêntico)
         val header = "IDMENSAGEM,DATAHORA,PLACA,TRACKID,LATITUDE,LONGITUDE\n"
         return header + registosFinais.value.joinToString("\n") {
-            "${it.idMensagem},${it.dataHora},${it.placa ?: ""},${it.trackId ?: ""},${it.latitude ?: ""},${it.longitude ?: ""}"
+            "${it.idMensagem},${DateUtils.formatarDataHora(it.dataHora)},${it.placa ?: ""},${it.trackId ?: ""},${it.latitude ?: ""},${it.longitude ?: ""}"
         }
     }
 
     fun gerarConteudoXML(): String {
-        // ... (código idêntico)
         val builder = StringBuilder()
         builder.append("<Consultas>\n")
         registosFinais.value.forEach {
             builder.append("  <Registo>\n")
             builder.append("    <IDMENSAGEM>${it.idMensagem}</IDMENSAGEM>\n")
-            builder.append("    <DATAHORA>${it.dataHora}</DATAHORA>\n")
+            builder.append("    <DATAHORA>${DateUtils.formatarDataHora(it.dataHora)}</DATAHORA>\n")
             builder.append("    <PLACA>${it.placa ?: ""}</PLACA>\n")
             builder.append("    <TRACKID>${it.trackId ?: ""}</TRACKID>\n")
             builder.append("    <LATITUDE>${it.latitude ?: ""}</LATITUDE>\n")

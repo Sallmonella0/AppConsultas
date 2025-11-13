@@ -5,4 +5,6 @@ plugins {
 
     // CORREÇÃO: Declarar o plugin do compilador Compose no nível raiz
     alias(libs.plugins.compose.compiler) apply false
+
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }

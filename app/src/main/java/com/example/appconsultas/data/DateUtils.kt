@@ -1,22 +1,19 @@
 package com.example.appconsultas.data
 
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object DateUtils {
-    private val inputFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-    private val outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
 
-    fun formatarDataHora(dataHoraString: String?): String {
-        if (dataHoraString.isNullOrEmpty()) {
-            return "Data Inválida"
-        }
-        return try {
-            val dateTime = LocalDateTime.parse(dataHoraString, inputFormatter)
-            dateTime.format(outputFormatter)
-        } catch (e: DateTimeParseException) {
-            dataHoraString
-        }
+    // Função mock para formatação de data/hora da API
+    fun formatarDataHora(dataHora: String): String {
+        return dataHora
+    }
+
+    // Retorna a data e hora atual formatada
+    fun getCurrentFormattedTime(): String {
+        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale("pt", "BR"))
+        return formatter.format(Date())
     }
 }

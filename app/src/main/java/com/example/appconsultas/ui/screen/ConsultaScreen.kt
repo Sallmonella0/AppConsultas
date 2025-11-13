@@ -13,7 +13,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+// IMPORTAÇÕES CORRIGIDAS E COMPLETAS (garantidas pela dependência 'material-icons-extended')
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Plagiarism
+// FIM DAS IMPORTAÇÕES DE ÍCONES
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +39,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.appconsultas.data.ConsultaRecord
 import com.example.appconsultas.data.DateUtils
-import com.example.appconsultas.ui.viewmodel.Coluna
-import com.example.appconsultas.ui.viewmodel.ColunaFiltro
 import com.example.appconsultas.ui.viewmodel.ConsultaViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -33,9 +46,10 @@ import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Plagiarism
-
+import com.example.appconsultas.data.Cliente
+import com.example.appconsultas.ui.viewmodel.Coluna
+import com.example.appconsultas.ui.viewmodel.ColunaFiltro
+import androidx.compose.foundation.layout.FlowRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -44,12 +58,16 @@ fun ConsultaScreen(
     drawerState: DrawerState,
     scope: CoroutineScope
 ) {
+    // Coletar estados do ViewModel
     val registos by viewModel.registosFinais.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val registoSelecionado by viewModel.registoSelecionado.collectAsState()
+    val userType by viewModel.userType.collectAsState()
+    val clientes by viewModel.clientes.collectAsState()
+    val clienteSelecionado by viewModel.clienteSelecionado.collectAsState()
+
     val context = LocalContext.current
     var showExportMenu by remember { mutableStateOf(false) }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
     val csvFileSaverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -99,7 +117,6 @@ fun ConsultaScreen(
             )
         },
         floatingActionButton = {
-            // Tive de embrulhar o FAB num Box para o DropdownMenu funcionar corretamente
             Box {
                 FloatingActionButton(
                     onClick = { showExportMenu = true }
@@ -140,6 +157,17 @@ fun ConsultaScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
 
+            // --- Seleção de Cliente (Apenas para Admin) ---
+            if (userType == "admin" && clientes.isNotEmpty()) {
+                SelecaoDeCliente(
+                    clientes = clientes,
+                    clienteSelecionado = clienteSelecionado,
+                    onClienteSelecionadoChange = viewModel::onClienteSelecionado
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            // ---------------------------------------------
+
             ControlesDaConsulta(viewModel, isLoading)
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -174,6 +202,65 @@ fun ConsultaScreen(
                 snackbarHostState = snackbarHostState,
                 scope = scope
             )
+        }
+    }
+}
+
+// --- Funções Auxiliares (Com Correções Estruturais) ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelecaoDeCliente(
+    clientes: List<Cliente>,
+    clienteSelecionado: Cliente?,
+    onClienteSelecionadoChange: (Cliente) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val selectedCliente = clienteSelecionado ?: Cliente(id = "all", nome = "TODOS OS CLIENTES", username = "", password = "", email = "")
+
+    Box(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                value = selectedCliente.nome,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Cliente Ativo (Admin)") },
+                leadingIcon = { Icon(Icons.Default.Group, contentDescription = "Clientes") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                // Opção "Todos os Clientes"
+                DropdownMenuItem(
+                    text = { Text("TODOS OS CLIENTES") },
+                    onClick = {
+                        clientes.firstOrNull()?.let { onClienteSelecionadoChange(it) }
+                        expanded = false
+                    }
+                )
+                // Opções de Clientes específicos
+                clientes.forEach { cliente ->
+                    DropdownMenuItem(
+                        text = { Text(cliente.nome) },
+                        onClick = {
+                            onClienteSelecionadoChange(cliente)
+                            expanded = false
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -257,7 +344,7 @@ fun MenuDeOrdenacao(viewModel: ConsultaViewModel) {
         ) {
             colunasParaOrdenar.forEach { coluna ->
                 DropdownMenuItem(
-                    text = { Text(coluna.displayName) }, // Assumindo que displayName é String
+                    text = { Text(coluna.displayName) },
                     onClick = {
                         viewModel.onOrdenarPor(coluna)
                         expanded = false
@@ -335,14 +422,14 @@ fun RegistoCard(registo: ConsultaRecord, onClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "TrackID: ${registo.trackId?.toString() ?: "N/A"}", // .toString()
+                    text = "TrackID: ${registo.trackId?.toString() ?: "N/A"}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = DateUtils.formatarDataHora(registo.dataHora), // Retorna String
+                text = DateUtils.formatarDataHora(registo.dataHora),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -392,38 +479,35 @@ fun DetailsDialog(
     val context = LocalContext.current
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
 
-    val detailsString = remember(record) {
-        """
-        Data/Hora: ${DateUtils.formatarDataHora(record.dataHora)}
-        ID Mensagem: ${record.idMensagem}
-        Latitude: ${record.latitude?.toString() ?: "N/A"}
-        Longitude: ${record.longitude?.toString() ?: "N/A"}
-        Placa: ${record.placa ?: "N/A"}
-        TrackID: ${record.trackId?.toString() ?: "N/A"} 
-        """.trimIndent() // <-- CORRIGIDO AQUI (toString())
+    // Lista de detalhes fora do Composable lambda 'text'
+    val detailsList = remember(record) {
+        listOf(
+            "Data/Hora" to DateUtils.formatarDataHora(record.dataHora),
+            "IDMENSAGEM" to (record.idMensagem.toString()),
+            "Latitude" to (record.latitude?.toString() ?: "N/A"),
+            "Longitude" to (record.longitude?.toString() ?: "N/A"),
+            "Placa" to (record.placa ?: "N/A"),
+            "TrackID" to (record.trackId?.toString() ?: "N/A")
+        )
     }
+
+    val detailsString = remember(record) {
+        detailsList.joinToString("\n") { (key, value) -> "$key: $value" }
+    }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Info, contentDescription = "Detalhes") },
         title = { Text("Detalhes do Registo") },
         text = {
+            // CORREÇÃO: Coluna dentro do Composable lambda 'text'
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // --- A CORREÇÃO ESTÁ AQUI ---
-                val details = listOf(
-                    "Data/Hora" to DateUtils.formatarDataHora(record.dataHora),
-                    "IDMENSAGEM" to (record.idMensagem.toString()),
-                    "Latitude" to (record.latitude?.toString() ?: "N/A"),
-                    "Longitude" to (record.longitude?.toString() ?: "N/A"),
-                    "Placa" to (record.placa ?: "N/A"),
-                    "TrackID" to (record.trackId?.toString() ?: "N/A") // <-- CORRIGIDO AQUI (toString())
-                )
-                // -----------------------------
 
-                details.forEach { (key, value) ->
+                detailsList.forEach { (key, value) ->
                     Row {
                         Text("$key:", fontWeight = FontWeight.Bold, modifier = Modifier.width(100.dp))
-                        Text(value) // Agora 'value' é sempre um String
+                        Text(value)
                     }
                 }
             }
@@ -432,7 +516,7 @@ fun DetailsDialog(
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Center // Uso correto de Arrangement.Vertical
             ) {
                 if (record.latitude != null && record.longitude != null) {
                     TextButton(
@@ -499,7 +583,7 @@ fun FiltroColunaDropDown(
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth(),
-            value = selected.name, // Enum para String
+            value = selected.name,
             onValueChange = {},
             readOnly = true,
             label = { Text("Coluna") },
@@ -513,12 +597,11 @@ fun FiltroColunaDropDown(
         ) {
             items.forEach { item ->
                 DropdownMenuItem(
-                    text = { Text(item.name) }, // Enum para String (Corrigido)
+                    text = { Text(item.name) },
                     onClick = {
                         onSelectedChange(item)
                         expanded = false
                     }
-                    // A linha 'contentPadding' foi removida, o que está correto
                 )
             }
         }

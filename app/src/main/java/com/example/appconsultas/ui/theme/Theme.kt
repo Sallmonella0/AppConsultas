@@ -20,6 +20,9 @@ private val DarkColorScheme = darkColorScheme(
     primary = dark_green_button_bg,       // Cor de Botões, FABs
     onPrimary = dark_green_selected_fg,   // Texto em cima dos Botões
 
+    primaryContainer = dark_green_alt_bg, // Fundo do Drawer Header (CORRIGIDO)
+    onPrimaryContainer = dark_green_fg,   // Texto no Drawer Header (CORRIGIDO)
+
     secondary = dark_green_selected_bg,   // Cor de Seleção
     onSecondary = dark_green_selected_fg, // Texto em cima da Seleção
 
@@ -40,6 +43,9 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = light_green_selected_bg,    // Cor de Botões, FABs
     onPrimary = light_green_selected_fg,  // Texto em cima dos Botões
+
+    primaryContainer = light_green_selected_bg, // Fundo do Drawer Header (CORRIGIDO)
+    onPrimaryContainer = light_green_selected_fg, // Texto no Drawer Header (CORRIGIDO)
 
     secondary = light_green_selected_bg,  // Cor de Seleção
     onSecondary = light_green_selected_fg,// Texto em cima da Seleção

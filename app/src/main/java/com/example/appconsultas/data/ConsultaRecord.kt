@@ -3,9 +3,8 @@ package com.example.appconsultas.data
 import com.google.gson.annotations.SerializedName
 
 data class ConsultaRecord(
-    // --- CORREÇÃO AQUI ---
     @SerializedName("IDMENSAGEM")
-    val idMensagem: Long, // Tinha de ser Long, não Int
+    val idMensagem: Long,
 
     @SerializedName("DATAHORA")
     val dataHora: String,
@@ -14,7 +13,7 @@ data class ConsultaRecord(
     val placa: String?,
 
     @SerializedName("TRACKID")
-    val trackId: Int?, // Int deve ser suficiente aqui, mas se também falhar, mude para Long
+    val trackId: Int?,
 
     @SerializedName("LATITUDE")
     val latitude: Double?,
