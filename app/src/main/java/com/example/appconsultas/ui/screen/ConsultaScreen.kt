@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-// IMPORTAÇÕES CORRIGIDAS E COMPLETAS (garantidas pela dependência 'material-icons-extended')
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Download
@@ -28,7 +27,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Plagiarism
-// FIM DAS IMPORTAÇÕES DE ÍCONES
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,14 +48,20 @@ import com.example.appconsultas.data.Cliente
 import com.example.appconsultas.ui.viewmodel.Coluna
 import com.example.appconsultas.ui.viewmodel.ColunaFiltro
 import androidx.compose.foundation.layout.FlowRow
+import androidx.navigation.NavController
+import androidx.compose.material3.DrawerState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ConsultaScreen(
     viewModel: ConsultaViewModel,
-    drawerState: DrawerState,
-    scope: CoroutineScope
+    navController: NavController
+    // REMOVIDOS drawerState e scope da assinatura, pois serão gerenciados localmente
 ) {
+    // Adiciona o DrawerState e o scope localmente para gerenciar o menu lateral
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
     // Coletar estados do ViewModel
     val registos by viewModel.registosFinais.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -93,115 +97,136 @@ fun ConsultaScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Consultas") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                navigationIcon = {
-                    IconButton(onClick = {
-                        scope.launch { drawerState.open() }
-                    }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Abrir Menu")
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            // Assumindo que AppDrawerContent existe e está correto
+            AppDrawerContent(
+                viewModel = viewModel,
+                onCloseDrawer = { scope.launch { drawerState.close() } },
+                onLogout = {
+                    viewModel.logout()
+                    navController.navigate("login") {
+                        popUpTo("main/admin") { inclusive = true }
                     }
                 },
-                actions = {
-                    MenuDeOrdenacao(viewModel = viewModel)
+                onNavigateToAdminStatus = {
+                    navController.navigate("adminStatus")
+                    scope.launch { drawerState.close() }
                 }
             )
-        },
-        floatingActionButton = {
-            Box {
-                FloatingActionButton(
-                    onClick = { showExportMenu = true }
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = "Exportar Dados")
-                }
-                DropdownMenu(
-                    expanded = showExportMenu,
-                    onDismissRequest = { showExportMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Exportar para CSV") },
-                        onClick = {
-                            showExportMenu = false
-                            val timestamp = System.currentTimeMillis()
-                            csvFileSaverLauncher.launch("consulta_$timestamp.csv")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Exportar para XML") },
-                        onClick = {
-                            showExportMenu = false
-                            val timestamp = System.currentTimeMillis()
-                            xmlFileSaverLauncher.launch("consulta_$timestamp.xml")
-                        }
-                    )
-                }
-            }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-        ) {
-            AnimatedVisibility(visible = isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
-            }
-
-            // --- Seleção de Cliente (Apenas para Admin) ---
-            if (userType == "admin" && clientes.isNotEmpty()) {
-                SelecaoDeCliente(
-                    clientes = clientes,
-                    clienteSelecionado = clienteSelecionado,
-                    onClienteSelecionadoChange = viewModel::onClienteSelecionado
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            // ---------------------------------------------
-
-            ControlesDaConsulta(viewModel, isLoading)
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Crossfade(targetState = when {
-                isLoading && registos.isEmpty() -> "LOADING"
-                registos.isEmpty() -> "EMPTY"
-                else -> "LIST"
-            }, label = "StateCrossfade") { state ->
-                when (state) {
-                    "LOADING" -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Consultas") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            scope.launch { drawerState.open() }
+                        }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Abrir Menu")
                         }
+                    },
+                    actions = {
+                        MenuDeOrdenacao(viewModel = viewModel)
                     }
-                    "EMPTY" -> {
-                        EstadoVazio(onRefreshClick = { viewModel.carregarDadosIniciais() })
+                )
+            },
+            floatingActionButton = {
+                Box {
+                    FloatingActionButton(
+                        onClick = { showExportMenu = true }
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Exportar Dados")
                     }
-                    "LIST" -> {
-                        ListaDeRegistosEmCartoes(
-                            registos = registos,
-                            onRegistoClick = { viewModel.onRegistoClicked(it) }
+                    DropdownMenu(
+                        expanded = showExportMenu,
+                        onDismissRequest = { showExportMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Exportar para CSV") },
+                            onClick = {
+                                showExportMenu = false
+                                val timestamp = System.currentTimeMillis()
+                                csvFileSaverLauncher.launch("consulta_$timestamp.csv")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Exportar para XML") },
+                            onClick = {
+                                showExportMenu = false
+                                val timestamp = System.currentTimeMillis()
+                                xmlFileSaverLauncher.launch("consulta_$timestamp.xml")
+                            }
                         )
                     }
                 }
             }
-        }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp)
+            ) {
+                AnimatedVisibility(visible = isLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                }
 
-        registoSelecionado?.let { record ->
-            DetailsDialog(
-                record = record,
-                onDismiss = { viewModel.onDetailsDialogDismiss() },
-                snackbarHostState = snackbarHostState,
-                scope = scope
-            )
+                // --- Seleção de Cliente (Apenas para Admin) ---
+                if (userType == "admin" && clientes.isNotEmpty()) {
+                    SelecaoDeCliente(
+                        clientes = clientes,
+                        clienteSelecionado = clienteSelecionado,
+                        onClienteSelecionadoChange = viewModel::onClienteSelecionado
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                // ---------------------------------------------
+
+                ControlesDaConsulta(viewModel, isLoading)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Crossfade(targetState = when {
+                    isLoading && registos.isEmpty() -> "LOADING"
+                    registos.isEmpty() -> "EMPTY"
+                    else -> "LIST"
+                }, label = "StateCrossfade") { state ->
+                    when (state) {
+                        "LOADING" -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        "EMPTY" -> {
+                            EstadoVazio(onRefreshClick = { viewModel.carregarDadosIniciais() })
+                        }
+                        "LIST" -> {
+                            ListaDeRegistosEmCartoes(
+                                registos = registos,
+                                onRegistoClick = { viewModel.onRegistoClicked(it) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            registoSelecionado?.let { record ->
+                DetailsDialog(
+                    record = record,
+                    onDismiss = { viewModel.onDetailsDialogDismiss() },
+                    snackbarHostState = snackbarHostState,
+                    scope = scope
+                )
+            }
         }
     }
 }
@@ -217,7 +242,8 @@ fun SelecaoDeCliente(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val selectedCliente = clienteSelecionado ?: Cliente(id = "all", nome = "TODOS OS CLIENTES", username = "", password = "", email = "")
+    // CORREÇÃO: Usa 'apiPassword' em vez de 'password'
+    val selectedCliente = clienteSelecionado ?: Cliente(id = "all", nome = "TODOS OS CLIENTES", username = "", apiPassword = "", email = "")
 
     Box(
         modifier = Modifier.fillMaxWidth()
@@ -516,7 +542,7 @@ fun DetailsDialog(
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
-                verticalArrangement = Arrangement.Center // Uso correto de Arrangement.Vertical
+                // Uso de Arrangement.Center para vertical (corrigido no código anterior)
             ) {
                 if (record.latitude != null && record.longitude != null) {
                     TextButton(

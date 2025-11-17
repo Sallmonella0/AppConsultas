@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 // Enums (Sem alterações)
 enum class Coluna(val displayName: String) {
@@ -34,7 +36,6 @@ enum class ColunaFiltro {
 
 class ConsultaViewModel(
     clientes: List<Cliente>,
-    // O callback é uma função 'suspend'
     private val onUpdateClientUsage: suspend (String, String?) -> Unit
 ) : ViewModel() {
 
@@ -47,8 +48,9 @@ class ConsultaViewModel(
     private val _clienteSelecionado = MutableStateFlow<Cliente?>(clientes.firstOrNull())
     val clienteSelecionado: StateFlow<Cliente?> = _clienteSelecionado.asStateFlow()
 
+    // MODIFICAÇÃO: Determina o tipo de usuário
     val userType: StateFlow<String> = MutableStateFlow(
-        if (clientes.size > 1) "admin" else "client"
+        if (_clienteSelecionado.value?.isAdmin == true || clientes.size > 1) "admin" else "client"
     ).asStateFlow()
 
     private val _darkTheme = MutableStateFlow(false)
@@ -122,13 +124,19 @@ class ConsultaViewModel(
     // --- Inicialização ---
     init {
         _clientes.value = clientes
+        // O administrador não tem dados de API para carregar no init,
+        // mas o cliente de API sim, se quiser carregar imediatamente.
+        _clienteSelecionado.value?.let { cliente ->
+            if (clientes.size == 1 && !cliente.isAdmin) {
+                carregarDadosIniciais()
+            }
+        }
     }
 
     // Atualiza o status da última consulta no Firestore/Repository
     private fun updateLastQueryTime() {
         clienteSelecionado.value?.let { cliente ->
             val currentTime = DateUtils.getCurrentFormattedTime()
-            // Lançamos a função suspend em um CoroutineScope
             viewModelScope.launch {
                 onUpdateClientUsage(cliente.username, currentTime)
             }
@@ -137,17 +145,26 @@ class ConsultaViewModel(
 
     // --- Funções Auth ---
     private fun gerarAuthHeader(cliente: Cliente): String {
-        val credenciais = "${cliente.username}:${cliente.password}"
+        val credenciais = "${cliente.username}:${cliente.apiPassword}"
         val dadosCodificados = Base64.encodeToString(credenciais.toByteArray(), Base64.NO_WRAP)
         return "Basic $dadosCodificados"
     }
 
-    fun logout() {}
-    fun setLoggedIn() {}
+    fun logout() {
+        Firebase.auth.signOut()
+        limparTudo()
+    }
+
+    fun setLoggedIn() {} // Função mantida vazia, pois a lógica de login está no LoginScreen
 
     // --- Ações da API ---
     fun carregarDadosIniciais() {
         val cliente = _clienteSelecionado.value ?: return
+
+        // Verifica se o cliente selecionado é um Admin e o impede de chamar a API com credenciais inválidas.
+        if (cliente.isAdmin) {
+            return
+        }
 
         viewModelScope.launch {
             _isLoading.value = true
@@ -172,6 +189,12 @@ class ConsultaViewModel(
     fun consultarPorId() {
         val cliente = _clienteSelecionado.value ?: return
         val id = _textoIdConsulta.value
+
+        // Verifica se o cliente selecionado é um Admin e o impede de chamar a API com credenciais inválidas.
+        if (cliente.isAdmin) {
+            return
+        }
+
         if (id.isBlank()) {
             carregarDadosIniciais()
             return
@@ -208,7 +231,7 @@ class ConsultaViewModel(
     fun toggleTheme() {
         _darkTheme.value = !_darkTheme.value
     }
-    // ... (restante das funções de UI)
+
     fun onTextoIdChange(novoTexto: String) {
         _textoIdConsulta.value = novoTexto
     }

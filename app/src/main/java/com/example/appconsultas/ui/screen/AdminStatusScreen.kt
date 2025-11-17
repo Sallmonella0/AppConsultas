@@ -4,27 +4,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-// CORREÇÃO: Import de ícone
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.appconsultas.data.Cliente
-import com.example.appconsultas.ui.viewmodel.ConsultaViewModel
 import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+// CORRIGIDO: Recebe NavController e a lista de clientes de API diretamente
 fun AdminStatusScreen(
-    viewModel: ConsultaViewModel,
-    navController: NavController
+    navController: NavController,
+    clientes: List<Cliente>
 ) {
-    val clientes by viewModel.clientes.collectAsState()
+    // Nível de acesso à lista de clientes agora é controlado pelo MainActivity
+    // val clientes by viewModel.clientes.collectAsState() REMOVIDO
 
     Scaffold(
         topBar = {
@@ -58,8 +56,8 @@ fun AdminStatusScreen(
                 )
             }
 
-            // Filtra o "admin" da lista de clientes para status
-            items(clientes.filter { it.username != "admin" }, key = { it.id }) { cliente ->
+            // A lista 'clientes' já vem filtrada do MainActivity.kt
+            items(clientes, key = { it.id }) { cliente ->
                 ClientUsageCard(cliente = cliente)
             }
         }

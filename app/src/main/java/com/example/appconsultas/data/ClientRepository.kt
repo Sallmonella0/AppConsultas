@@ -1,75 +1,94 @@
 package com.example.appconsultas.data
 
 import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.ktx.snapshots
 import kotlinx.coroutines.tasks.await
-import com.google.firebase.firestore.Query.Direction
 
-// Interface de Repository
 interface ClientDataSource {
-    val clientesMasterList: Flow<List<Cliente>>
+    suspend fun getClientByUsername(username: String): Cliente?
     suspend fun getClientByEmail(email: String): Cliente?
+    suspend fun getAllClients(): List<Cliente>
     suspend fun updateClientLastLogin(username: String)
-    suspend fun updateClientLastQuery(username: String, lastQueryTime: String?)
+    suspend fun updateClientLastQuery(username: String, time: String?)
 }
 
-// Implementação do Repositório usando Firestore
+object ClientDataStore : ClientDataSource {
+    private val repository = ClientRepository()
+
+    override suspend fun getClientByUsername(username: String): Cliente? = repository.getClientByUsername(username)
+    override suspend fun getClientByEmail(email: String): Cliente? = repository.getClientByEmail(email)
+    override suspend fun getAllClients(): List<Cliente> = repository.getAllClients()
+    override suspend fun updateClientLastLogin(username: String) = repository.updateClientLastLogin(username)
+    override suspend fun updateClientLastQuery(username: String, time: String?) = repository.updateClientLastQuery(username, time)
+}
+
 class ClientRepository : ClientDataSource {
 
     private val db = Firebase.firestore
     private val clientesCollection = db.collection("clientes")
 
-    val ADMIN_USERNAME = "admin"
-    val ADMIN_PASSWORD = "admin123"
+    // Credenciais de Admin hardcoded removidas
 
-    /**
-     * Retorna a lista de clientes usando um Flow de snapshots do Firestore (Realtime).
-     */
-    override val clientesMasterList: Flow<List<Cliente>> = clientesCollection
-        .orderBy("nome", Direction.ASCENDING)
-        .snapshots()
-        .map { snapshot: QuerySnapshot ->
-            snapshot.documents.mapNotNull { document ->
-                val cliente = document.toObject<Cliente>()
-                cliente?.apply { id = document.id }
-            }
+    override suspend fun getClientByUsername(username: String): Cliente? {
+        return try {
+            clientesCollection.document(username)
+                .get()
+                .await()
+                .toObject(Cliente::class.java)?.apply {
+                    this.id = username
+                }
+        } catch (e: Exception) {
+            null
         }
+    }
 
-    /**
-     * Localiza um cliente pelo Email (usado na autenticação).
-     */
     override suspend fun getClientByEmail(email: String): Cliente? {
-        return clientesCollection
-            .whereEqualTo("email", email.lowercase())
-            .get()
-            .await()
-            .documents
-            .firstOrNull()
-            ?.toObject<Cliente>()
-            ?.apply { id = this.username }
+        return try {
+            // Usa o email para buscar o perfil no Firestore
+            clientesCollection.whereEqualTo("email", email.lowercase())
+                .limit(1)
+                .get()
+                .await()
+                .documents
+                .firstOrNull()
+                ?.toObject(Cliente::class.java)?.apply {
+                    this.id = this.username // Assume username é o ID do documento
+                }
+        } catch (e: Exception) {
+            null
+        }
     }
 
-    /**
-     * Atualiza o campo lastLoginTime no Firestore.
-     */
+    override suspend fun getAllClients(): List<Cliente> {
+        return try {
+            clientesCollection.get().await().documents.mapNotNull { document ->
+                document.toObject(Cliente::class.java)?.apply {
+                    this.id = this.username
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     override suspend fun updateClientLastLogin(username: String) {
-        val clienteDocRef = clientesCollection.document(username)
-        clienteDocRef.update("lastLoginTime", DateUtils.getCurrentFormattedTime()).await()
+        val currentTime = DateUtils.getCurrentFormattedTime()
+        try {
+            clientesCollection.document(username)
+                .update("lastLoginTime", currentTime)
+                .await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-    /**
-     * Atualiza o campo lastQueryTime no Firestore.
-     */
-    override suspend fun updateClientLastQuery(username: String, lastQueryTime: String?) {
-        val clienteDocRef = clientesCollection.document(username)
-        clienteDocRef.update("lastQueryTime", lastQueryTime ?: "N/A").await()
+    override suspend fun updateClientLastQuery(username: String, time: String?) {
+        try {
+            clientesCollection.document(username)
+                .update("lastQueryTime", time ?: "N/A")
+                .await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
-
-// Instância Singleton do Repositório para uso em outras classes
-val ClientDataStore = ClientRepository()

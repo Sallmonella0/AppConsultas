@@ -3,17 +3,17 @@ package com.example.appconsultas.data
 import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.IgnoreExtraProperties
 
-// Mapeamento para Firestore requer construtor vazio e anotações
 @IgnoreExtraProperties
 data class Cliente(
-    @get:Exclude var id: String = "", // Usado como ID do documento/cliente
+    @get:Exclude var id: String = "",
     var nome: String = "",
-    var username: String = "", // Credencial da API (Auth Header)
-    var password: String = "", // Hash da API (Auth Header)
-    var email: String = "",    // Credencial de Login do Usuário
+    var username: String = "",
+    var apiPassword: String = "",
+    var email: String = "",
     var lastLoginTime: String = "N/A",
-    var lastQueryTime: String = "N/A"
+    var lastQueryTime: String = "N/A",
+    var isAdmin: Boolean = false
 ) {
-    // Construtor vazio necessário para o Firebase Firestore
-    constructor() : this("", "", "", "", "")
+    // Construtor vazio
+    constructor() : this("", "", "", "", "", "", "", false)
 }

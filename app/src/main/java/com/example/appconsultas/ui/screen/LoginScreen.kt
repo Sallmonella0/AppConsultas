@@ -2,87 +2,74 @@ package com.example.appconsultas.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
-import com.example.appconsultas.data.Cliente
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Lock
-// CORREÇÃO: Importações de ícones
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.example.appconsultas.data.ClientDataStore
+import com.example.appconsultas.ui.viewmodel.LoginViewModel
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import com.example.appconsultas.data.ClientDataStore // Importa a instância do Repositório
-import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     navController: NavController,
-    adminCredentials: Pair<String, String>,
-    clientesMasterList: List<Cliente>,
     onSuccessfulLogin: suspend (String) -> Unit
 ) {
+    val viewModel: LoginViewModel = viewModel()
+
     var emailOrUsername by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     fun handleLogin() {
         error = null
-        val input = emailOrUsername.trim().lowercase()
+        val inputEmail = emailOrUsername.trim().lowercase()
 
-        // 1. Tenta Login Admin (Validação Local)
-        if (input == adminCredentials.first.lowercase()) {
-            if (password == adminCredentials.second) {
-                scope.launch { onSuccessfulLogin(input) }
-                navController.navigate("main/admin") {
-                    popUpTo("login") { inclusive = true }
-                }
-            } else {
-                error = "Senha de administrador inválida."
-            }
-            return
-        }
-
-        // 2. Tenta Login Cliente (Validação Firebase Auth)
         scope.launch {
             isLoading = true
             try {
-                // Autentica com o Firebase Auth
-                Firebase.auth.signInWithEmailAndPassword(input, password).await()
+                // 1. Autentica no Firebase
+                Firebase.auth.signInWithEmailAndPassword(inputEmail, password).await()
 
-                // Se a Auth for bem-sucedida, busca o cliente no Firestore
-                val cliente = ClientDataStore.getClientByEmail(input)
+                // 2. Busca perfil no Firestore
+                val perfil = ClientDataStore.getClientByEmail(inputEmail)
 
-                if (cliente != null) {
-                    // Atualiza o status no Firestore usando o USERNAME da API
-                    ClientDataStore.updateClientLastLogin(cliente.username)
+                if (perfil != null) {
+                    ClientDataStore.updateClientLastLogin(perfil.username)
+                    scope.launch { onSuccessfulLogin(perfil.username) }
 
-                    // Navega usando o USERNAME da API
-                    scope.launch { onSuccessfulLogin(cliente.username) }
-                    navController.navigate("main/client/${cliente.username}") {
-                        popUpTo("login") { inclusive = true }
+                    if (perfil.isAdmin) {
+                        navController.navigate("main/admin") {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate("main/client/${perfil.username}") {
+                            popUpTo("login") { inclusive = true }
+                        }
                     }
                 } else {
                     error = "Conta autenticada, mas perfil não encontrado no Firestore."
                     Firebase.auth.signOut()
                 }
             } catch (e: Exception) {
-                error = "Falha no login. Verifique o email e senha."
+                error = "Falha no login. Verifique o email e a senha."
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -90,89 +77,82 @@ fun LoginScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { paddingValues ->
+    Scaffold { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            Card(
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .padding(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    .fillMaxWidth(0.8f)
+                    .padding(16.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Lock,
-                        contentDescription = "Ícone de Cadeado",
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Acesso ao Sistema",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "App Consultas",
+                    style = MaterialTheme.typography.headlineLarge
+                )
 
-                    OutlinedTextField(
-                        value = emailOrUsername,
-                        onValueChange = { emailOrUsername = it },
-                        label = { Text("Email ou Usuário Admin") },
-                        leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Senha") },
-                        leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(imageVector = image, contentDescription = "Mostrar/Esconder Senha")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
+                OutlinedTextField(
+                    value = emailOrUsername,
+                    onValueChange = { emailOrUsername = it },
+                    label = { Text("Email") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                    Button(
-                        onClick = { handleLogin() },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 12.dp),
-                        enabled = !isLoading && emailOrUsername.isNotBlank() && password.isNotBlank()
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                        } else {
-                            Text("ENTRAR")
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Senha") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (passwordVisible)
+                        VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        val icon = if (passwordVisible)
+                            Icons.Filled.Visibility
+                        else
+                            Icons.Filled.VisibilityOff
+
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = if (passwordVisible) "Esconder senha" else "Mostrar senha"
+                            )
                         }
                     }
+                )
 
-                    error?.let {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(it, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = ::handleLogin,
+                    enabled = !isLoading &&
+                            emailOrUsername.isNotBlank() &&
+                            password.isNotBlank(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text("LOGIN")
                     }
+                }
+
+                error?.let {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
